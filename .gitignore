@@ -27,4 +27,5 @@
 # Extra
 .ms-playwright/
 *.png
-test.html
+index.html
+screenshot-go

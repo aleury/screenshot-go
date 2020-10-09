@@ -1,81 +1,82 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/mxschmitt/playwright-go"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+
+	"screenshot-go/utils"
 )
 
 func main() {
-	content, err := ioutil.ReadFile("test.html")
-	if err != nil {
-		log.Fatalf("could not load html file: %v", err)
+	app := NewApp()
+	if err := app.Start(); err != nil {
+		log.Fatalf("could start app: %v", err)
 	}
 
-	pw, err := playwright.Run()
-	if err != nil {
-		log.Fatalf("could not launch playwright: %v", err)
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Heartbeat("/ping"))
+	r.Get("/", renderImages(&app))
+
+	srv := &http.Server{
+		Addr:    ":3000",
+		Handler: r,
 	}
 
-	browser, err := pw.Chromium.Launch()
-	if err != nil {
-		log.Fatalf("could not launch Chromium: %v", err)
-	}
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	page, err := browser.NewPage()
-	if err != nil {
-		log.Fatalf("could not creae page: %v", err)
-	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+	log.Println("Server started")
 
-	scOpts := playwright.PageSetContentOptions{WaitUntil: playwright.String("networkidle")}
-	if err = page.SetContent(string(content), scOpts); err != nil {
-		log.Fatalf("could not set page content: %v", err)
-	}
+	<-done
+	log.Println("Stopping server...")
 
-	targetHandle, err := page.QuerySelector("#screenshot-target")
-	if err != nil {
-		log.Fatalf("could not target handle: %v", err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer func() {
+		app.Stop()
+		cancel()
+	}()
 
-	scrollWidthHandle, err := targetHandle.GetProperty("scrollWidth")
-	if err != nil {
-		log.Fatalf("could not get scrollWidth handle: %v", err)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("server shutdown failed: %+v", err)
 	}
-	scrollWidth, err := scrollWidthHandle.JSONValue()
-	if err != nil {
-		log.Fatalf("could not get scrollWidth value: %v", err)
-	}
+	log.Println("Server exited gracefully!")
+}
 
-	scrollHeightHandle, err := targetHandle.GetProperty("scrollHeight")
-	if err != nil {
-		log.Fatalf("could not get scrollHeight handle: %v", err)
-	}
-	scrollHeight, err := scrollHeightHandle.JSONValue()
-	if err != nil {
-		log.Fatalf("could not get scrollHeight value: %v", err)
-	}
+func renderImages(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		url := r.URL.Query().Get("url")
 
-	sOpts := playwright.PageScreenshotOptions{
-		Path:     playwright.String("test.png"),
-		FullPage: playwright.Bool(true),
-		Clip: &playwright.PageScreenshotClip{
-			X:      playwright.Int(0),
-			Y:      playwright.Int(0),
-			Width:  playwright.Int(scrollWidth.(int)),
-			Height: playwright.Int(scrollHeight.(int)),
-		},
-	}
-	_, err = page.Screenshot(sOpts)
-	if err != nil {
-		log.Fatalf("could not create screenshot: %v", err)
-	}
+		if image, ok := app.Get(url); ok {
+			utils.WriteImage(w, image)
+			return
+		}
 
-	if err = browser.Close(); err != nil {
-		log.Fatalf("could not close browser: %v", err)
-	}
+		filename := "test.png"
+		err := app.RenderPage(filename, url)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	if err = pw.Stop(); err != nil {
-		log.Fatalf("could not stop playwright: %v", err)
+		image, err := ioutil.ReadFile(filename)
+		app.Store(url, image)
+
+		utils.WriteImage(w, image)
 	}
 }
