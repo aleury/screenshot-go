@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -56,8 +55,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not get scrollHeight value: %v", err)
 	}
-
-	fmt.Println(scrollWidth.(int), scrollHeight.(int))
 
 	sOpts := playwright.PageScreenshotOptions{
 		Path:     playwright.String("test.png"),
