@@ -27,7 +27,7 @@ func (app *App) Start() error {
 
 	browser, err := pw.Chromium.Launch()
 	if err != nil {
-		return fmt.Errorf("could not launch Chromium: %v", err)
+		return fmt.Errorf("could not launch chromium: %v", err)
 	}
 
 	app.pw = pw
@@ -54,7 +54,7 @@ func (app *App) Get(key string) ([]byte, bool) {
 	return image, ok
 }
 
-// Store caches the rendered
+// Store caches the rendered image
 func (app *App) Store(key string, image []byte) {
 	app.cache[key] = image
 }
@@ -92,7 +92,7 @@ func (app *App) RenderPage(filename, url string) error {
 func (app *App) screenshot(filename string, page *playwright.Page) error {
 	targetHandle, err := page.QuerySelector("#screenshot-target")
 	if err != nil {
-		return fmt.Errorf("could not target handle: %v", err)
+		return fmt.Errorf("could not get target handle: %v", err)
 	}
 
 	scrollWidthHandle, err := targetHandle.GetProperty("scrollWidth")
