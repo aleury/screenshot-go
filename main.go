@@ -18,7 +18,7 @@ import (
 func main() {
 	app := NewApp()
 	if err := app.Start(); err != nil {
-		log.Fatalf("could start app: %v", err)
+		log.Fatalf("could not start app: %v", err)
 	}
 
 	r := chi.NewRouter()
