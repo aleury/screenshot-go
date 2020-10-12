@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -67,14 +66,11 @@ func renderImages(app *App) http.HandlerFunc {
 			return
 		}
 
-		filename := "test.png"
-		err := app.RenderPage(filename, url)
+		image, err := app.RenderPage(url)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		image, err := ioutil.ReadFile(filename)
 		app.Store(url, image)
 
 		utils.WriteImage(w, image)

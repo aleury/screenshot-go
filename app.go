@@ -60,61 +60,61 @@ func (app *App) Store(key string, image []byte) {
 }
 
 // RenderContent generates a PNG image from a string of html
-func (app *App) RenderContent(filename, content string) error {
+func (app *App) RenderContent(content string) ([]byte, error) {
 	page, err := app.browser.NewPage()
 	if err != nil {
-		return fmt.Errorf("could not creae page: %v", err)
+		return nil, fmt.Errorf("could not creae page: %v", err)
 	}
 
 	opts := playwright.PageSetContentOptions{WaitUntil: playwright.String("networkidle")}
 	if err = page.SetContent(content, opts); err != nil {
-		return fmt.Errorf("could not set page content: %v", err)
+		return nil, fmt.Errorf("could not set page content: %v", err)
 	}
 
-	return app.screenshot(filename, page)
+	return app.screenshot(page)
 }
 
 // RenderPage generates a PNG image from a web page
-func (app *App) RenderPage(filename, url string) error {
+func (app *App) RenderPage(url string) ([]byte, error) {
 	page, err := app.browser.NewPage()
 	if err != nil {
-		return fmt.Errorf("could not creae page: %v", err)
+		return nil, fmt.Errorf("could not creae page: %v", err)
 	}
+	defer page.Close()
 
 	opts := playwright.PageGotoOptions{WaitUntil: playwright.String("networkidle")}
 	if _, err = page.Goto(url, opts); err != nil {
-		return fmt.Errorf("could not goto url: %v", err)
+		return nil, fmt.Errorf("could not goto url: %v", err)
 	}
 
-	return app.screenshot(filename, page)
+	return app.screenshot(page)
 }
 
-func (app *App) screenshot(filename string, page *playwright.Page) error {
+func (app *App) screenshot(page *playwright.Page) ([]byte, error) {
 	targetHandle, err := page.QuerySelector("#screenshot-target")
 	if err != nil {
-		return fmt.Errorf("could not target handle: %v", err)
+		return nil, fmt.Errorf("could not target handle: %v", err)
 	}
 
 	scrollWidthHandle, err := targetHandle.GetProperty("scrollWidth")
 	if err != nil {
-		return fmt.Errorf("could not get scrollWidth handle: %v", err)
+		return nil, fmt.Errorf("could not get scrollWidth handle: %v", err)
 	}
 	scrollWidth, err := scrollWidthHandle.JSONValue()
 	if err != nil {
-		return fmt.Errorf("could not get scrollWidth value: %v", err)
+		return nil, fmt.Errorf("could not get scrollWidth value: %v", err)
 	}
 
 	scrollHeightHandle, err := targetHandle.GetProperty("scrollHeight")
 	if err != nil {
-		return fmt.Errorf("could not get scrollHeight handle: %v", err)
+		return nil, fmt.Errorf("could not get scrollHeight handle: %v", err)
 	}
 	scrollHeight, err := scrollHeightHandle.JSONValue()
 	if err != nil {
-		return fmt.Errorf("could not get scrollHeight value: %v", err)
+		return nil, fmt.Errorf("could not get scrollHeight value: %v", err)
 	}
 
 	sOpts := playwright.PageScreenshotOptions{
-		Path:     playwright.String(filename),
 		FullPage: playwright.Bool(true),
 		Clip: &playwright.PageScreenshotClip{
 			X:      playwright.Int(0),
@@ -123,10 +123,10 @@ func (app *App) screenshot(filename string, page *playwright.Page) error {
 			Height: playwright.Int(scrollHeight.(int)),
 		},
 	}
-	_, err = page.Screenshot(sOpts)
+	image, err := page.Screenshot(sOpts)
 	if err != nil {
-		return fmt.Errorf("could not create screenshot: %v", err)
+		return nil, fmt.Errorf("could not create screenshot: %v", err)
 	}
 
-	return nil
+	return image, nil
 }
